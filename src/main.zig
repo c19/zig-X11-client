@@ -1,5 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
+
 const proto = @import("proto.zig");
 
 pub fn main(init: std.process.Init) !void {
@@ -9,7 +10,7 @@ pub fn main(init: std.process.Init) !void {
     var conn = try addr.connect(io);
     defer conn.close(io);
 
-    var read_buf: [64 * 1024]u8 = undefined;
+    var read_buf: [0]u8 = undefined;
     var write_buf: [64 * 1024]u8 = undefined;
     var reader = conn.reader(io, &read_buf);
     var writer = conn.writer(io, &write_buf);
@@ -19,14 +20,17 @@ pub fn main(init: std.process.Init) !void {
     try writer.interface.writeAll(&setup_req_bytes);
     try writer.interface.flush();
 
-    var reader_buf: [64 * 1024]u8 = undefined;
+    // align(4) as the requirment of X11 protocol.
+    // this saves us from coping the bytes around.
+    var reader_buf: [64 * 1024]u8 align(4) = undefined;
     var data: [1][]u8 = .{&reader_buf};
     while (true) {
         const n = try reader.interface.readVec(&data);
-
-        for (reader_buf[0..n]) |byte| {
-            std.log.debug("{X:0>2}", .{byte});
-        }
-        std.log.debug("----------", .{});
+        const viewer: proto.SetupViewer = .{ .bytes = &reader_buf };
+        std.debug.print("{f}\n", .{viewer});
+        // for (reader_buf[0..n]) |byte| {
+        //     std.log.debug("{X:0>2}", .{byte});
+        // }
+        std.log.debug("{d}\n", .{n});
     }
 }
