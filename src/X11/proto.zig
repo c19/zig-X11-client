@@ -153,7 +153,69 @@ pub const Screen = extern struct {
     }
 };
 
-pub const SetupReply = extern struct {
+pub const SetupFailed = extern struct {
+    status: u8 = 0,
+    reason_len: u8,
+    protocol_major_version: u16,
+    protocol_minor_version: u16,
+    length: u16,
+    pub fn reason(self: *const @This()) []const u8 {
+        const start: usize = @sizeOf(@This());
+        const end = start + self.length * 4;
+
+        const base: [*]const u8 = @ptrCast(self);
+        return base[start..end];
+    }
+
+    pub fn size(self: *const @This()) u16 {
+        var total_size: u16 = @sizeOf(@This());
+        total_size += self.length * 4;
+        return total_size;
+    }
+    pub fn check_size(self: *const @This(), buffer_size: usize) !void {
+        if (self.size() != buffer_size) {
+            std.debug.print("SetupReply size: {d} != buffer_size: {d}\n", .{ self.size(), buffer_size });
+            return error.SizeNotMatchBufferSize;
+        }
+        // The docs says the length include the 8 bytes header, but in XOrg server code. it does not.
+        if (self.length * 4 + 8 != buffer_size) {
+            std.debug.print("SetupReply.length: {d} != buffer_size: {d}\n", .{ self.length * 4 + 8, buffer_size });
+            return error.LengthNotMatchBufferSize;
+        }
+    }
+};
+
+pub const SetupAuthenticate = extern struct {
+    status: u8 = 2,
+    pad_1: [5]u8,
+    length: u16,
+    pub fn reason(self: *const @This()) []const u8 {
+        const start: usize = @sizeOf(@This());
+        const end = start + self.length * 4;
+
+        const base: [*]const u8 = @ptrCast(self);
+        return base[start..end];
+    }
+
+    pub fn size(self: *const @This()) u16 {
+        var total_size: u16 = @sizeOf(@This());
+        total_size += self.length * 4;
+        return total_size;
+    }
+    pub fn check_size(self: *const @This(), buffer_size: usize) !void {
+        if (self.size() != buffer_size) {
+            std.debug.print("SetupReply size: {d} != buffer_size: {d}\n", .{ self.size(), buffer_size });
+            return error.SizeNotMatchBufferSize;
+        }
+        // The docs says the length include the 8 bytes header, but in XOrg server code. it does not.
+        if (self.length * 4 + 8 != buffer_size) {
+            std.debug.print("SetupReply.length: {d} != buffer_size: {d}\n", .{ self.length * 4 + 8, buffer_size });
+            return error.LengthNotMatchBufferSize;
+        }
+    }
+};
+
+pub const SetupSuccess = extern struct {
     status: u8 = 1,
     pad_1: u8,
     protocol_major_version: u16,
@@ -214,11 +276,22 @@ pub const SetupReply = extern struct {
         return total_size;
     }
     pub fn check_size(self: *const @This(), buffer_size: usize) !void {
-        if (self.size() > buffer_size) {
-            std.debug.print("SetupReply size: {d} > buffer_size: {d}\n", .{ self.size(), buffer_size });
-            return error.ExceedBufferSize;
+        if (self.size() != buffer_size) {
+            std.debug.print("SetupReply size: {d} != buffer_size: {d}\n", .{ self.size(), buffer_size });
+            return error.SizeNotMatchBufferSize;
+        }
+        // The docs says the length include the 8 bytes header, but in XOrg server code. it does not.
+        if (self.length * 4 + 8 != buffer_size) {
+            std.debug.print("SetupReply.length: {d} != buffer_size: {d}\n", .{ self.length * 4 + 8, buffer_size });
+            return error.LengthNotMatchBufferSize;
         }
     }
+};
+
+const SetupReplyStatus = enum(u8) {
+    Failed = 0,
+    Success = 1,
+    Authenticate = 2,
 };
 
 // for test & reference, use main instead of test for easier test on release build
@@ -228,21 +301,41 @@ pub fn main() !void {
     std.debug.print("bytes {*}\n", .{&bytes});
     std.debug.print("bytes end {*}\n", .{&bytes[bytes.len - 1]});
 
-    const setup: *const SetupReply = @ptrCast(&bytes);
-    try setup.check_size(bytes.len);
-    std.debug.print("{any}\n", .{setup});
-    std.debug.print("vendor: {s}\n", .{setup.vendor()});
-    std.debug.print("pixmap_formats: {any}\n", .{setup.pixmap_formats()});
+    const status: SetupReplyStatus = @enumFromInt(bytes[0]);
+    switch (status) {
+        .Success => {
+            const setup: *const SetupSuccess = @ptrCast(&bytes);
+            try setup.check_size(bytes.len);
+            std.debug.print("{any}\n", .{setup});
+            std.debug.print("vendor: {s}\n", .{setup.vendor()});
+            for (setup.pixmap_formats()) |format| {
+                std.debug.print("pixmap_format: {any}\n", .{format});
+            }
 
-    var screens_iter = setup.screens();
-    const screen = screens_iter.next().?;
-    std.debug.print("{any}\n", .{screen});
+            var screens_iter = setup.screens();
+            while (screens_iter.next()) |screen| {
+                std.debug.print("screen: {any}\n", .{screen});
 
-    var depths_iter = screen.allowed_depths();
-    while (depths_iter.next()) |one| {
-        std.debug.print("{any}\n", .{one});
-        for (one.visuals()) |visual| {
-            std.debug.print("{any}\n", .{visual});
-        }
+                var depths_iter = screen.allowed_depths();
+                while (depths_iter.next()) |one| {
+                    std.debug.print("depth: {any}\n", .{one});
+                    for (one.visuals()) |visual| {
+                        std.debug.print("visual: {any}\n", .{visual});
+                    }
+                }
+            }
+        },
+        .Failed => {
+            const setup: *const SetupFailed = @ptrCast(&bytes);
+            try setup.check_size(bytes.len);
+            std.debug.print("{any}\n", .{setup});
+            std.debug.print("reason: {s}\n", .{setup.reason()});
+        },
+        .Authenticate => {
+            const setup: *const SetupAuthenticate = @ptrCast(&bytes);
+            try setup.check_size(bytes.len);
+            std.debug.print("{any}\n", .{setup});
+            std.debug.print("reason: {s}\n", .{setup.reason()});
+        },
     }
 }
