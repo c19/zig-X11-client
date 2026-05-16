@@ -20,6 +20,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     bin(b, "client", "src/main.zig", target, optimize);
-    bin(b, "proto", "src/X11/proto.zig", target, optimize);
+    bin(b, "proto-setup", "src/X11/proto/setup.zig", target, optimize);
     bin(b, "mitm-socket", "src/tools/mitm-socket.zig", target, optimize);
 }
