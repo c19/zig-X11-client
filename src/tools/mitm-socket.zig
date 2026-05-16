@@ -9,7 +9,7 @@ const Header = packed struct {
 fn forward(reader: *std.Io.Reader, writer: *std.Io.Writer) !void {
     while (true) {
         const byte = try reader.takeByte();
-        std.log.debug("-> {X:0>2} {c}", .{ byte, byte });
+        std.log.debug("-> {X:0>2}", .{byte});
         try writer.writeByte(byte);
         try writer.flush();
     }
@@ -18,7 +18,7 @@ fn forward(reader: *std.Io.Reader, writer: *std.Io.Writer) !void {
 fn backward(reader: *std.Io.Reader, writer: *std.Io.Writer) !void {
     while (true) {
         const byte = try reader.takeByte();
-        std.log.debug("<- {X:0>2} {c}", .{ byte, byte });
+        std.log.debug("<- {X:0>2}", .{byte});
         try writer.writeByte(byte);
         try writer.flush();
     }
