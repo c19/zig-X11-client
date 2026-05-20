@@ -22,4 +22,7 @@ libmd.so.0 => /lib/x86_64-linux-gnu/libmd.so.0
 ### References
 
 [X11 Protocol](https://www.x.org/releases/current/doc/xproto/x11protocol.html)
+> not always match the actual code/behavior.
+
 [xcb-proto-1.17.0.tar.xz](https://www.x.org/releases/individual/xcb/xcb-proto-1.17.0.tar.xz)
+> not always match the actual code/behavior.
